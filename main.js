@@ -5,11 +5,11 @@ const MUD = 3;
 const COBBLESTONES = 4;
 const WOOD_FLOOR = 5;
 const STONE_FLOOR = 6;
-const STONE_WALL = 6;
-const WOOD_WALL = 7;
-const SHINGLES = 8;
-const GRASS = 9;
-const WATER = 10;
+const STONE_WALL = 7;
+const WOOD_WALL = 8;
+const SHINGLES = 9;
+const GRASS = 10;
+const WATER = 11;
 
 const LIGHT_NONE = 0;
 const LIGHT_DIM_FLICKER = 1;
@@ -19,6 +19,9 @@ const LIGHT_BRIGHT = 4;
 
 const OBJ_PLAYER = 0;
 const OBJ_TORCH = 1;
+const OBJ_WOOD_DOOR = 2;
+const OBJ_GLASS_WINDOW = 3;
+const OBJ_LADDER = 4;
 
 const EAST = 0;
 const WEST = 4;
@@ -61,6 +64,16 @@ function getRandomIntInclusive(min, max) {
 
 function percentChance(chance) { return getRandomIntInclusive(1, 100) <= chance; }
 
+function unit(value) {
+  if (value < 0) {
+    return -1;
+  }
+  if (value > 0) {
+    return 1;
+  }
+  return 0;
+}
+
 class Game {
   constructor() {
     this.map = new Map(this);
@@ -91,12 +104,40 @@ class Game {
     let newY = DIRECTIONS[direction][1] + this.pY();
     let newZ = DIRECTIONS[direction][2] + this.pZ();
 
-    if (blocksMovement(this.map.getSpace(newZ, newY, newX))) {
+    if (newZ > this.pZ() && blocksMovementFromBelow(this.map.getSpace(newZ, newY, newX))) {
+      return false;
+    }
+
+    if (newZ < this.pZ() && blocksMovementFromBelow(this.map.getSpace(this.pZ(), newY, newX))) {
+      return false;
+    }
+
+    if (this.map.blocksMovementAt(newZ, newY, newX)) {
       return false;
     }
 
     this.map.placeObject(this.player, newZ, newY, newX);
     this.map.playerFovUpToDate = false;
+    return true;
+  }
+
+  playerOpenDoor(direction) {
+    let doorX = DIRECTIONS[direction][0] + this.pX();
+    let doorY = DIRECTIONS[direction][1] + this.pY();
+    let doorZ = DIRECTIONS[direction][2] + this.pZ();
+
+    let door = _.find(this.getObjectsAt(doorZ, doorY, doorX), o => o.type === OBJ_WOOD_DOOR);
+
+    if (!door) {
+      return false;
+    }
+
+    door.open = !door.open;
+    door.blocksLight = !door.blocksLight;
+    door.blocksMovement = !door.blocksMovement;
+
+    this.map.playerFovUpToDate = false;
+    this.map.illuminationUpToDate = false;
     return true;
   }
 }
@@ -154,7 +195,7 @@ class Map {
         }
       }
     }
-    let floors = getRandomIntInclusive(0, 4);
+    let floors = getRandomIntInclusive(1, 4);
     for (let j = topEdge; j < topEdge + width; j++) {
       for (let i = leftEdge; i < leftEdge + width; i++) {
         for (let k = 0; k < floors; k++) {
@@ -163,8 +204,55 @@ class Map {
             terrain: STONE_WALL
           }
         }
+        this.getLayer(floors).spaces[j][i] = {
+          building: true,
+          terrain: SHINGLES
+        }
       }
     }
+
+    for (let j = topEdge + 1; j < topEdge + width - 1; j++) {
+      for (let i = leftEdge + 1; i < leftEdge + width - 1; i++) {
+        for (let k = 0; k < floors; k++) {
+          this.getLayer(k).spaces[j][i] = {
+            building: true,
+            terrain: WOOD_FLOOR
+          }
+        }
+      }
+    }
+
+    let doorY, doorX;
+    switch(_.sample([NORTH, SOUTH, EAST, WEST])) {
+      case NORTH:
+        doorY = topEdge;
+        doorX = leftEdge + getRandomIntInclusive(1, width - 2);
+        break;
+      case SOUTH:
+        doorY = topEdge + width - 1;
+        doorX = leftEdge + getRandomIntInclusive(1, width - 2);
+        break;
+      case WEST:
+        doorY = topEdge + getRandomIntInclusive(1, width - 2);
+        doorX = leftEdge;
+        break;
+      case EAST:
+        doorY = topEdge + getRandomIntInclusive(1, width - 2);
+        doorX = leftEdge + width - 1;
+        break;
+    }
+
+    this.getLayer(0).spaces[doorY][doorX] = {
+      building: true,
+      terrain: WOOD_FLOOR
+    }
+    let door = {
+      type: OBJ_WOOD_DOOR,
+      blocksLight: true,
+      blocksMovement: true,
+      open: false
+    };
+    this.placeObject(door, 0, doorY, doorX);
   }
 
   placeCanal() {
@@ -299,6 +387,66 @@ class Map {
     }
     return this.getLayer(z).getSpace(y, x);
   }
+
+  blocksLightAt(z, y, x) {
+    if (_.some(this.getObjectsAt(z, y, x), o => o.blocksLight)) {
+      return true;
+    }
+    let space = this.getSpace(z, y, x);
+    switch (space) {
+      case GRASS:
+      case COBBLESTONES:
+      case WATER:
+      case SHINGLES:
+      case WOOD_FLOOR:
+      case STONE_FLOOR:
+        return false;
+      case STONE_WALL:
+      case SOLID_EARTH:
+        return true;
+    }
+    return false;
+  }
+
+  blocksLightFromBelowAt(z, y, x) {
+    if (_.some(this.getObjectsAt(z, y, x), o => o.blocksLight)) {
+      return true;
+    }
+    let space = this.getSpace(z, y, x);
+    switch (space) {
+      case GRASS:
+      case COBBLESTONES:
+      case WATER:
+      case SHINGLES:
+      case WOOD_FLOOR:
+      case STONE_FLOOR:
+      case STONE_WALL:
+      case SOLID_EARTH:
+        return true;
+    }
+    return false;
+  }
+
+  blocksMovementAt(z, y, x) {
+    if (_.some(this.getObjectsAt(z, y, x), o => o.blocksMovement)) {
+      return true;
+    }
+    let space = this.getSpace(z, y, x);
+    switch(space) {
+      case GRASS:
+      case COBBLESTONES:
+      case WATER:
+      case SHINGLES:
+      case WOOD_FLOOR:
+      case STONE_FLOOR:
+        return false;
+      case STONE_WALL:
+      case SOLID_EARTH:
+        return true;
+    }
+    return false;
+  }
+
 }
 
 class Layer {
@@ -328,7 +476,7 @@ class Layer {
 
   updateIllumination() {
     console.log('updating illumination at height ' + this.z);
-    let fov = new ROT.FOV.RecursiveShadowcasting((x, y) => !blocksLight(this.getSpace(y, x)));
+    let fov = new ROT.FOV.RecursiveShadowcasting((x, y) => !this.map.blocksLightAt(this.z, y, x));
 
 
     this.map.getObjects().forEach(o => {
@@ -350,11 +498,16 @@ class Layer {
   }
 
   verticallyPropagateThroughSpace(z, y, x) {
+    // TODO: rewrite this
+    /*if (this.map.blocksLightFromBelowAt(z + d[2], y + d[1], x + d[0])) {
+      return true;
+    }*/
+
     let directions = [NORTH, SOUTH, EAST, WEST, NW, SW, SE, NE, CENTER];
 
     for (let i = 0; i < directions.length; i++) {
       let d = DIRECTIONS[i];
-      if (!blocksLight(this.map.getSpace(z+d[2], y+d[1], x+d[0]))) {
+      if (!this.map.blocksLightAt(z + d[2], y + d[1], x + d[0])) {
         return true;
       }
     }
@@ -363,20 +516,23 @@ class Layer {
   }
 
   updatePlayerFov() {
-    let fov = new ROT.FOV.RecursiveShadowcasting((x, y) => !blocksLight(this.getSpace(y, x)));
+    let fov = new ROT.FOV.RecursiveShadowcasting((x, y) => !this.map.blocksLightAt(this.z, y, x));
     let player = this.map.game.player;
     if (player.z == this.z) {
       fov.compute(player.x, player.y, 40, (x, y, r, visibility) => {
 
+        let deltaX = unit(x - player.x);
+        let deltaY = unit(y - player.y);
+
         for (let k = player.z; k < player.z + 10; k++) {
-          if (!this.verticallyPropagateThroughSpace(k, y, x)) {
+          if (!this.verticallyPropagateThroughSpace(k, y, x, yOffset, xOffset)) {
             break;
           }
           this.map.playerFov[`${k},${y},${x}`] = true;
         }
 
         for (let k = player.z; k > player.z - 10; k--) {
-          if (!this.verticallyPropagateThroughSpace(k, y, x)) {
+          if (!this.verticallyPropagateThroughSpace(k, y, x, yOffset, xOffset)) {
             break;
           }
           this.map.playerFov[`${k},${y},${x}`] = true;
@@ -419,6 +575,15 @@ displayForTerrain = function(terrainType) {
       return {character: '"', color: 'lightgreen', background: 'green', catchLight: true};
     case COBBLESTONES:
       return {character: '.', color: 'white', background: 'black', catchLight: true};
+    case SHINGLES:
+      return {character: '=',
+      color: 'white',//'black',
+      background: 'grey',//'#703508',
+      catchLight: true};
+    case WOOD_FLOOR:
+      return {character: '=', color: 'black', background: '#A0522D	', catchLight: true};
+    case STONE_FLOOR:
+      return {character: '.', color: 'white', background: 'grey	', catchLight: true};
     case STONE_WALL:
       return {character: '#', color: 'white', background: 'grey', catchLight: false};
     case WATER:
@@ -437,31 +602,23 @@ displayForObject = function(objectType) {
       return {character: '*', color: _.sample(['red', 'yellow', 'orange'])};
     case OBJ_PLAYER:
       return {character: '@', color: 'white'};
+    case OBJ_WOOD_DOOR:
+      return {character: '#', color: 'black'};
   }
   return {character: '?', color: 'white'};
 }
 
-blocksLight = function(terrainType) {
+blocksMovementFromBelow = function(terrainType) {
   switch(terrainType) {
-    case GRASS:
-    case COBBLESTONES:
     case WATER:
       return false;
-    case STONE_WALL:
-    case SOLID_EARTH:
-      return true;
-  }
-  return false;
-}
-
-blocksMovement = function(terrainType) {
-  switch(terrainType) {
     case GRASS:
     case COBBLESTONES:
-    case WATER:
-      return false;
     case STONE_WALL:
     case SOLID_EARTH:
+    case SHINGLES:
+    case WOOD_FLOOR:
+    case STONE_FLOOR:
       return true;
   }
   return false;
@@ -470,7 +627,7 @@ blocksMovement = function(terrainType) {
 playerTurn = function()
 {
 	drawAll(false);
-	window.addEventListener('keydown', selectDirection);
+	window.addEventListener('keyup', selectDirection);
   //window.addEventListener('mousemove', highlightObjects);
   //window.addEventListener('click', clickTarget);
 }
@@ -488,7 +645,7 @@ selectDirection.handleEvent = function(event) {
 		case 55:
 			//numpad7, top left
       if (move(NW)) {
-        window.removeEventListener('keydown', this);
+        window.removeEventListener('keyup', this);
         playerTurn();
       }
 			break;
@@ -497,7 +654,7 @@ selectDirection.handleEvent = function(event) {
 		case 57:
 			//numpad9, top right
       if (move(NE)) {
-        window.removeEventListener('keydown', this);
+        window.removeEventListener('keyup', this);
         playerTurn();
       }
 			break;
@@ -505,7 +662,7 @@ selectDirection.handleEvent = function(event) {
 		case 37:
 			//numpad4, left
       if (move(WEST)) {
-        window.removeEventListener('keydown', this);
+        window.removeEventListener('keyup', this);
         playerTurn();
       }
 			break;
@@ -513,7 +670,7 @@ selectDirection.handleEvent = function(event) {
 		case 39:
 			//numpad6, right
       if (move(EAST)) {
-        window.removeEventListener('keydown', this);
+        window.removeEventListener('keyup', this);
         playerTurn();
       }
 			break;
@@ -522,7 +679,7 @@ selectDirection.handleEvent = function(event) {
 		case 49:
 			//numpad1, bottom left
       if (move(SW)) {
-        window.removeEventListener('keydown', this);
+        window.removeEventListener('keyup', this);
         playerTurn();
       }
 			break;
@@ -531,41 +688,41 @@ selectDirection.handleEvent = function(event) {
 		case 51:
 			//numpad3, bottom right
       if (move(SE)) {
-        window.removeEventListener('keydown', this);
+        window.removeEventListener('keyup', this);
         playerTurn();
       }
 			break;
     case 40:
 			//numpad2, down
       if (move(SOUTH)) {
-        window.removeEventListener('keydown', this);
+        window.removeEventListener('keyup', this);
         playerTurn();
       }
 			break;
     case 38:
 			//numpad8, up
       if (move(NORTH)) {
-        window.removeEventListener('keydown', this);
+        window.removeEventListener('keyup', this);
         playerTurn();
       }
 			break;
     case 188: // <
     case 85:  // u
       if (move(UP)) {
-        window.removeEventListener('keydown', this);
+        window.removeEventListener('keyup', this);
         playerTurn();
       }
 			break;
     case 190: // >
     case 68:  // d
       if (move(DOWN)) {
-        window.removeEventListener('keydown', this);
+        window.removeEventListener('keyup', this);
         playerTurn();
       }
 			break;
     case 86:
 			//v
-      window.removeEventListener('keydown', this);
+      window.removeEventListener('keyup', this);
       viewAngle++;
       if (viewAngle > VIEW_ISO_SE) {
         viewAngle = 0;
@@ -649,6 +806,10 @@ findSpaceToDraw = function(y, x) {
       space = game.map.getSpace(mapZ, mapY, mapX);
     }
   } else {
+    let playerUnderSomething = blocksMovementFromBelow(game.map.getSpace(game.pZ() + 1, game.pY(), game.pX()));
+    if (playerUnderSomething) {
+      return null;
+    }
     do {
       cnt++;
       if (viewAngle == VIEW_ISO_NW) {
