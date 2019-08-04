@@ -248,8 +248,8 @@ class Map {
     }
     let door = {
       type: OBJ_WOOD_DOOR,
-      blocksLight: true,
-      blocksMovement: true,
+      blocksLight: false,
+      blocksMovement: false,
       open: false
     };
     this.placeObject(door, 0, doorY, doorX);
@@ -497,21 +497,11 @@ class Layer {
     console.log('updating illumination at height ' + this.z + ' DONE');
   }
 
-  verticallyPropagateThroughSpace(z, y, x) {
-    // TODO: rewrite this
-    /*if (this.map.blocksLightFromBelowAt(z + d[2], y + d[1], x + d[0])) {
+  verticallyPropagateThroughSpace(z, y, x, yOffset, xOffset) {
+    let d = [ xOffset, yOffset, 1 ];
+    if (!this.map.blocksLightFromBelowAt(z + d[2], y + d[1], x + d[0])) {
       return true;
-    }*/
-
-    let directions = [NORTH, SOUTH, EAST, WEST, NW, SW, SE, NE, CENTER];
-
-    for (let i = 0; i < directions.length; i++) {
-      let d = DIRECTIONS[i];
-      if (!this.map.blocksLightAt(z + d[2], y + d[1], x + d[0])) {
-        return true;
-      }
     }
-
     return false;
   }
 
@@ -521,21 +511,21 @@ class Layer {
     if (player.z == this.z) {
       fov.compute(player.x, player.y, 40, (x, y, r, visibility) => {
 
-        let deltaX = unit(x - player.x);
-        let deltaY = unit(y - player.y);
+        let deltaX = unit(player.x - x);
+        let deltaY = unit(player.y - y);
 
         for (let k = player.z; k < player.z + 10; k++) {
-          if (!this.verticallyPropagateThroughSpace(k, y, x, yOffset, xOffset)) {
+          this.map.playerFov[`${k},${y},${x}`] = true;
+          if (!this.verticallyPropagateThroughSpace(k, y, x, deltaY, deltaX)) {
             break;
           }
-          this.map.playerFov[`${k},${y},${x}`] = true;
         }
 
         for (let k = player.z; k > player.z - 10; k--) {
-          if (!this.verticallyPropagateThroughSpace(k, y, x, yOffset, xOffset)) {
+          this.map.playerFov[`${k},${y},${x}`] = true;
+          if (!this.verticallyPropagateThroughSpace(k, y, x, deltaY, deltaX)) {
             break;
           }
-          this.map.playerFov[`${k},${y},${x}`] = true;
         }
 
       });
@@ -603,7 +593,7 @@ displayForObject = function(objectType) {
     case OBJ_PLAYER:
       return {character: '@', color: 'white'};
     case OBJ_WOOD_DOOR:
-      return {character: '#', color: 'black'};
+      return {character: ',', color: 'black'};
   }
   return {character: '?', color: 'white'};
 }
@@ -693,6 +683,7 @@ selectDirection.handleEvent = function(event) {
       }
 			break;
     case 40:
+    case 98:
 			//numpad2, down
       if (move(SOUTH)) {
         window.removeEventListener('keyup', this);
@@ -700,6 +691,7 @@ selectDirection.handleEvent = function(event) {
       }
 			break;
     case 38:
+    case 104:
 			//numpad8, up
       if (move(NORTH)) {
         window.removeEventListener('keyup', this);
