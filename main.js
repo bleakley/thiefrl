@@ -77,6 +77,7 @@ function unit(value) {
 class Game {
   constructor() {
     this.map = new Map(this);
+    this.turn = 0;
     this.player = {
       type: OBJ_PLAYER,
       name: 'Garrett',
@@ -97,6 +98,10 @@ class Game {
 
   pZ() {
     return this.player.z;
+  }
+
+  advanceGameState() {
+    this.turn++;
   }
 
   movePlayer(direction) {
@@ -550,9 +555,9 @@ let displayW = 69;
 let displayH = 49;
 let viewAngle = VIEW_ISO_NW;
 
-let game = new Game();
+let acceptingInput = false;
 
-var selectDirection = {};
+let game = new Game();
 
 mapDisplay = new ROT.Display({
   width:displayW, height:displayH,
@@ -614,115 +619,100 @@ blocksMovementFromBelow = function(terrainType) {
   return false;
 }
 
-playerTurn = function()
-{
-	drawAll(false);
-	window.addEventListener('keyup', selectDirection);
-  //window.addEventListener('mousemove', highlightObjects);
-  //window.addEventListener('click', clickTarget);
+var keysDown = [];
+var keydownHandler = {};
+var keyupHandler = {};
+const KEY_CTRL = 17;
+
+endPlayerTurn = function() {
+  game.advanceGameState();
+  drawAll(false);
 }
 
 move =  function(direction) {
-  return game.movePlayer(direction);
+  let moved = game.movePlayer(direction);
+  if (moved) {
+    endPlayerTurn();
+  }
+  return moved;
 }
 
-selectDirection.handleEvent = function(event) {
-	console.log("event handle key code: " + event.keyCode);
-	switch(event.keyCode)
-	{
+keyPressed = function(code) {
+
+  switch (code) {
 		case 103:
 		case 36:
 		case 55:
 			//numpad7, top left
-      if (move(NW)) {
-        window.removeEventListener('keyup', this);
-        playerTurn();
-      }
+      move(NW);
 			break;
 		case 105:
 		case 33:
 		case 57:
 			//numpad9, top right
-      if (move(NE)) {
-        window.removeEventListener('keyup', this);
-        playerTurn();
-      }
+      move(NE);
 			break;
 		case 100:
 		case 37:
 			//numpad4, left
-      if (move(WEST)) {
-        window.removeEventListener('keyup', this);
-        playerTurn();
-      }
+      move(WEST);
 			break;
 		case 102:
 		case 39:
 			//numpad6, right
-      if (move(EAST)) {
-        window.removeEventListener('keyup', this);
-        playerTurn();
-      }
+      move(EAST);
 			break;
 		case 97:
 		case 35:
 		case 49:
 			//numpad1, bottom left
-      if (move(SW)) {
-        window.removeEventListener('keyup', this);
-        playerTurn();
-      }
+      move(SW);
 			break;
 		case 99:
 		case 34:
 		case 51:
 			//numpad3, bottom right
-      if (move(SE)) {
-        window.removeEventListener('keyup', this);
-        playerTurn();
-      }
+      move(SE);
 			break;
     case 40:
     case 98:
 			//numpad2, down
-      if (move(SOUTH)) {
-        window.removeEventListener('keyup', this);
-        playerTurn();
-      }
+      move(SOUTH);
 			break;
     case 38:
     case 104:
 			//numpad8, up
-      if (move(NORTH)) {
-        window.removeEventListener('keyup', this);
-        playerTurn();
-      }
+      move(NORTH);
 			break;
     case 188: // <
     case 85:  // u
-      if (move(UP)) {
-        window.removeEventListener('keyup', this);
-        playerTurn();
-      }
+      move(UP);
 			break;
     case 190: // >
     case 68:  // d
-      if (move(DOWN)) {
-        window.removeEventListener('keyup', this);
-        playerTurn();
-      }
+      move(DOWN);
 			break;
     case 86:
 			//v
-      window.removeEventListener('keyup', this);
       viewAngle++;
       if (viewAngle > VIEW_ISO_SE) {
         viewAngle = 0;
       }
-      playerTurn();
 			break;
 	}
+}
 
+keydownHandler.handleEvent = function(event) {
+  let code = event.keyCode;
+  if (!keysDown[code]) {
+    keyPressed(code);
+  }
+	keysDown[code] = true;
+}
+
+keyupHandler.handleEvent = function(event) {
+  let code = event.keyCode;
+  keysDown[code] = false;
 };
 
 zAdjustColor = function(color, z) {
@@ -840,7 +830,7 @@ drawAll = function(recursion=true) {
     }
   }
 
-  mapDisplay.drawText(0, 0, `${game.pX()},${game.pY()},${game.pZ()} View: ${VIEWS[viewAngle]}`);
+  mapDisplay.drawText(0, 0, `${game.pX()},${game.pY()},${game.pZ()} View: ${VIEWS[viewAngle]} Turn: ${game.turn}`);
 
   if(recursion) {
     setTimeout(() => drawAll(true), 900);
@@ -853,6 +843,7 @@ init = function()
 
   drawAll(true);
 
-	playerTurn();
+  window.addEventListener('keyup', keyupHandler);
+  window.addEventListener('keydown', keydownHandler);
 
 }
