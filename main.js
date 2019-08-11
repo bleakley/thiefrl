@@ -1,91 +1,16 @@
-const NOTHING = 0;
-const SOLID_EARTH = 1;
-const SOLID_STONE = 2;
-const MUD = 3;
-const COBBLESTONES = 4;
-const WOOD_FLOOR = 5;
-const STONE_FLOOR = 6;
-const STONE_WALL = 7;
-const WOOD_WALL = 8;
-const SHINGLES = 9;
-const GRASS = 10;
-const WATER = 11;
-
-const LIGHT_NONE = 0;
-const LIGHT_DIM_FLICKER = 1;
-const LIGHT_DIM = 2;
-const LIGHT_BRIGHT_FLICKER = 3;
-const LIGHT_BRIGHT = 4;
-
-const OBJ_PLAYER = 0;
-const OBJ_TORCH = 1;
-const OBJ_WOOD_DOOR = 2;
-const OBJ_GLASS_WINDOW = 3;
-const OBJ_LADDER = 4;
-
-const EAST = 0;
-const WEST = 4;
-const NORTH = 2;
-const SOUTH = 6;
-const NE = 1;
-const NW = 3;
-const SE = 7;
-const SW = 5;
-const CENTER = 8;
-const UP = 9;
-const DOWN = 10;
-
-const DIRECTIONS = [];
-DIRECTIONS[EAST] = [1, 0, 0];
-DIRECTIONS[WEST] = [-1, 0, 0];
-DIRECTIONS[NORTH] = [0, -1, 0];
-DIRECTIONS[SOUTH] = [0, 1, 0];
-DIRECTIONS[NE] = [1, -1, 0];
-DIRECTIONS[NW] = [-1, -1, 0];
-DIRECTIONS[SE] = [1, 1, 0];
-DIRECTIONS[SW] = [-1, 1, 0];
-DIRECTIONS[CENTER] = [0, 0, 0];
-DIRECTIONS[UP] = [0, 0, 1];
-DIRECTIONS[DOWN] = [0, 0, -1];
-
-const VIEW_2D = 0;
-const VIEW_ISO_NW = 1;
-const VIEW_ISO_SE = 2;
-const VIEWS = [];
-VIEWS[VIEW_2D] = '2d';
-VIEWS[VIEW_ISO_NW] = 'Iso NW';
-VIEWS[VIEW_ISO_SE] = 'Iso SE';
-
-function getRandomIntInclusive(min, max) {
-  min = Math.ceil(min);
-  max = Math.floor(max);
-  return Math.floor(Math.random() * (max - min + 1)) + min; //The maximum is inclusive and the minimum is inclusive
-}
-
-function percentChance(chance) { return getRandomIntInclusive(1, 100) <= chance; }
-
-function unit(value) {
-  if (value < 0) {
-    return -1;
-  }
-  if (value > 0) {
-    return 1;
-  }
-  return 0;
-}
-
 class Game {
   constructor() {
     this.map = new Map(this);
     this.turn = 0;
-    this.player = {
+    this.player = new Creature(this, 0, 50, -20);
+    /*{
       type: OBJ_PLAYER,
       name: 'Garrett',
       health: 10,
       awareness: 20,
       breath: 10
     };
-    this.map.placeObject(this.player, 0, 50, -20);
+    this.map.placeObject(this.player, 0, 50, -20);*/
   }
 
   pX() {
@@ -105,7 +30,8 @@ class Game {
   }
 
   movePlayer(direction) {
-    let newX = DIRECTIONS[direction][0] + this.pX();
+    return this.player.move(direction);
+    /*let newX = DIRECTIONS[direction][0] + this.pX();
     let newY = DIRECTIONS[direction][1] + this.pY();
     let newZ = DIRECTIONS[direction][2] + this.pZ();
 
@@ -123,7 +49,7 @@ class Game {
 
     this.map.placeObject(this.player, newZ, newY, newX);
     this.map.playerFovUpToDate = false;
-    return true;
+    return true;*/
   }
 
   playerOpenDoor(direction) {
@@ -143,6 +69,81 @@ class Game {
 
     this.map.playerFovUpToDate = false;
     this.map.illuminationUpToDate = false;
+    return true;
+  }
+}
+
+class GameObject {
+  constructor(game, z, y, x) {
+    this.blocksLight = false;
+    this.blocksMovement = false;
+
+    this.game = game;
+    this.z = z;
+    this.y = y;
+    this.x = x;
+    this.game.map.placeObject(this, z, y, x);
+  }
+
+}
+
+/*class Torch extends GameObject {
+  constructor(game, z, y, x) {
+    GameObject.call(this, game);
+    this.type = OBJ_TORCH;
+  }
+}
+
+class Door extends GameObject {
+  constructor(game, z, y, x) {
+    GameObject.call(this, game, z, y, x);
+    this.open = false;
+    this.type = OBJ_WOOD_DOOR;
+  }
+
+  open() {
+    this.open = !this.open;
+    this.update();
+  }
+
+  update() {
+    this.blocksLight = this.open;
+    this.blocksMovement = this.open;
+
+    this.game.map.playerFovUpToDate = false;
+    this.game.map.illuminationUpToDate = false;
+  }
+}*/
+
+class Creature extends GameObject {
+  constructor(game, z, y, x) {
+    super(game, z, y, x);
+    this.type = OBJ_PLAYER;
+    this.isPlayer = true;
+  }
+
+  move(direction) {
+    let newX = DIRECTIONS[direction][0] + this.x;
+    let newY = DIRECTIONS[direction][1] + this.y;
+    let newZ = DIRECTIONS[direction][2] + this.z;
+
+    if (newZ > this.z && blocksMovementFromBelow(this.game.map.getSpace(newZ, newY, newX))) {
+      return false;
+    }
+
+    if (newZ < this.z && blocksMovementFromBelow(this.game.map.getSpace(this.z, newY, newX))) {
+      return false;
+    }
+
+    if (this.game.map.blocksMovementAt(newZ, newY, newX)) {
+      return false;
+    }
+
+    this.game.map.placeObject(this, newZ, newY, newX);
+    if (this.isPlayer) {
+      this.game.map.playerFovUpToDate = false;
+    }
+
     return true;
   }
 }
@@ -622,11 +623,26 @@ blocksMovementFromBelow = function(terrainType) {
 var keysDown = [];
 var keydownHandler = {};
 var keyupHandler = {};
-const KEY_CTRL = 17;
+
+let highlightedSpace = [game.pZ(), game.pY(), game.pX()];
+let contextMenuOpen = false;
+let highlightedContextMenuRow = null;
 
 endPlayerTurn = function() {
   game.advanceGameState();
   drawAll(false);
+}
+
+selectDirection =  function(direction) {
+  if (keysDown[KEY_CTRL]) {
+    let newX = DIRECTIONS[direction][0] + game.pX();
+    let newY = DIRECTIONS[direction][1] + game.pY();
+    let newZ = DIRECTIONS[direction][2] + game.pZ();
+    openContextMenu(newZ, newY, newX);
+    return true;
+  } else {
+    return move(direction);
+  }
 }
 
 move =  function(direction) {
@@ -637,6 +653,12 @@ move =  function(direction) {
   return moved;
 }
 
+openContextMenu =  function(z, y, x) {
+  contextMenuOpen = true;
+  highlightedSpace = [z, y, x];
+  highlightedContextMenuRow = 0;
+}
+
 keyPressed = function(code) {
 
   switch (code) {
@@ -644,53 +666,53 @@ keyPressed = function(code) {
 		case 36:
 		case 55:
 			//numpad7, top left
-      move(NW);
+      selectDirection(NW);
 			break;
 		case 105:
 		case 33:
 		case 57:
 			//numpad9, top right
-      move(NE);
+      selectDirection(NE);
 			break;
 		case 100:
 		case 37:
 			//numpad4, left
-      move(WEST);
+      selectDirection(WEST);
 			break;
 		case 102:
 		case 39:
 			//numpad6, right
-      move(EAST);
+      selectDirection(EAST);
 			break;
 		case 97:
 		case 35:
 		case 49:
 			//numpad1, bottom left
-      move(SW);
+      selectDirection(SW);
 			break;
 		case 99:
 		case 34:
 		case 51:
 			//numpad3, bottom right
-      move(SE);
+      selectDirection(SE);
 			break;
     case 40:
     case 98:
 			//numpad2, down
-      move(SOUTH);
+      selectDirection(SOUTH);
 			break;
     case 38:
     case 104:
 			//numpad8, up
-      move(NORTH);
+      selectDirection(NORTH);
 			break;
     case 188: // <
     case 85:  // u
-      move(UP);
+      selectDirection(UP);
 			break;
     case 190: // >
     case 68:  // d
-      move(DOWN);
+      selectDirection(DOWN);
 			break;
     case 86:
 			//v
@@ -703,6 +725,7 @@ keyPressed = function(code) {
 }
 
 keydownHandler.handleEvent = function(event) {
+  event.preventDefault();
   let code = event.keyCode;
   if (!keysDown[code]) {
     keyPressed(code);
@@ -711,6 +734,7 @@ keydownHandler.handleEvent = function(event) {
 }
 
 keyupHandler.handleEvent = function(event) {
+  event.preventDefault();
   let code = event.keyCode;
   keysDown[code] = false;
 };
