@@ -1,6 +1,7 @@
 class Game {
   constructor() {
     this.map = new Map(this);
+    this.map.build();
     this.turn = 0;
     this.player = new Creature(this, 0, 50, -20);
     /*{
@@ -31,46 +32,8 @@ class Game {
 
   movePlayer(direction) {
     return this.player.move(direction);
-    /*let newX = DIRECTIONS[direction][0] + this.pX();
-    let newY = DIRECTIONS[direction][1] + this.pY();
-    let newZ = DIRECTIONS[direction][2] + this.pZ();
-
-    if (newZ > this.pZ() && blocksMovementFromBelow(this.map.getSpace(newZ, newY, newX))) {
-      return false;
-    }
-
-    if (newZ < this.pZ() && blocksMovementFromBelow(this.map.getSpace(this.pZ(), newY, newX))) {
-      return false;
-    }
-
-    if (this.map.blocksMovementAt(newZ, newY, newX)) {
-      return false;
-    }
-
-    this.map.placeObject(this.player, newZ, newY, newX);
-    this.map.playerFovUpToDate = false;
-    return true;*/
   }
 
-  playerOpenDoor(direction) {
-    let doorX = DIRECTIONS[direction][0] + this.pX();
-    let doorY = DIRECTIONS[direction][1] + this.pY();
-    let doorZ = DIRECTIONS[direction][2] + this.pZ();
-
-    let door = _.find(this.getObjectsAt(doorZ, doorY, doorX), o => o.type === OBJ_WOOD_DOOR);
-
-    if (!door) {
-      return false;
-    }
-
-    door.open = !door.open;
-    door.blocksLight = !door.blocksLight;
-    door.blocksMovement = !door.blocksMovement;
-
-    this.map.playerFovUpToDate = false;
-    this.map.illuminationUpToDate = false;
-    return true;
-  }
 }
 
 class GameObject {
@@ -91,29 +54,37 @@ class GameObject {
   constructor(game, z, y, x) {
     GameObject.call(this, game);
     this.type = OBJ_TORCH;
+    this.name = 'Torch';
   }
-}
+}*/
 
 class Door extends GameObject {
   constructor(game, z, y, x) {
-    GameObject.call(this, game, z, y, x);
-    this.open = false;
+    super(game, z, y, x);
+    this._open = false;
     this.type = OBJ_WOOD_DOOR;
+    this.name = 'Door';
+    this.isDoor = true;
+    this.update();
+  }
+
+  isOpen() {
+    return this._open;
   }
 
   open() {
-    this.open = !this.open;
+    this._open = !this._open;
     this.update();
   }
 
   update() {
-    this.blocksLight = this.open;
-    this.blocksMovement = this.open;
+    this.blocksLight = !this.isOpen();
+    this.blocksMovement = !this.isOpen();
 
     this.game.map.playerFovUpToDate = false;
     this.game.map.illuminationUpToDate = false;
   }
-}*/
+}
 
 class Creature extends GameObject {
   constructor(game, z, y, x) {
@@ -122,10 +93,23 @@ class Creature extends GameObject {
     this.isPlayer = true;
   }
 
-  move(direction) {
-    let newX = DIRECTIONS[direction][0] + this.x;
-    let newY = DIRECTIONS[direction][1] + this.y;
-    let newZ = DIRECTIONS[direction][2] + this.z;
+  canMoveInDirection(direction) {
+
+    let dx, dy, dz;
+
+    if (Number.isInteger(direction)) {
+      dx = DIRECTIONS[direction][0];
+      dy = DIRECTIONS[direction][1];
+      dz = DIRECTIONS[direction][2];
+    } else {
+      dz = direction[0];
+      dy = direction[1];
+      dx = direction[2];
+    }
+
+    let newX = dx + this.x;
+    let newY = dy + this.y;
+    let newZ = dz + this.z;
 
     if (newZ > this.z && blocksMovementFromBelow(this.game.map.getSpace(newZ, newY, newX))) {
       return false;
@@ -139,6 +123,31 @@ class Creature extends GameObject {
       return false;
     }
 
+    return true;
+  }
+
+  move(direction) {
+
+    let dx, dy, dz;
+
+    if (Number.isInteger(direction)) {
+      dx = DIRECTIONS[direction][0];
+      dy = DIRECTIONS[direction][1];
+      dz = DIRECTIONS[direction][2];
+    } else {
+      dx = direction[2];
+      dy = direction[1];
+      dz = direction[0];
+    }
+
+    let newX = dx + this.x;
+    let newY = dy + this.y;
+    let newZ = dz + this.z;
+
+    if (!this.canMoveInDirection(direction)) {
+      return false
+    }
+
     this.game.map.placeObject(this, newZ, newY, newX);
     if (this.isPlayer) {
       this.game.map.playerFovUpToDate = false;
@@ -146,6 +155,16 @@ class Creature extends GameObject {
 
     return true;
   }
+
+  open(object) {
+    if (!object.isDoor) {
+      return false;
+    }
+
+    object.open();
+    return true;
+  }
+
 }
 
 class Map {
@@ -169,7 +188,9 @@ class Map {
     for (let z = 1; z < 10; z++) {
       this.layers[z] = new Layer(this, z);
     }
+  }
 
+  build() {
     let canalAttemptCount = 0;
     while (canalAttemptCount < 20) {
       this.placeCanal();
@@ -252,13 +273,7 @@ class Map {
       building: true,
       terrain: WOOD_FLOOR
     }
-    let door = {
-      type: OBJ_WOOD_DOOR,
-      blocksLight: false,
-      blocksMovement: false,
-      open: false
-    };
-    this.placeObject(door, 0, doorY, doorX);
+    new Door(this.game, 0, doorY, doorX);
   }
 
   placeCanal() {
@@ -592,14 +607,17 @@ displayForTerrain = function(terrainType) {
   return {character: '?', color: 'black', background: 'white'};
 }
 
-displayForObject = function(objectType) {
-  switch(objectType) {
+displayForObject = function(object) {
+  switch(object.type) {
     case OBJ_TORCH:
       return {character: '*', color: _.sample(['red', 'yellow', 'orange'])};
     case OBJ_PLAYER:
       return {character: '@', color: 'white'};
     case OBJ_WOOD_DOOR:
-      return {character: ',', color: 'black'};
+      if (object.isOpen()) {
+        return {character: ',', color: 'black'};
+      }
+      return {character: '#', color: 'black'};
   }
   return {character: '?', color: 'white'};
 }
@@ -625,8 +643,108 @@ var keydownHandler = {};
 var keyupHandler = {};
 
 let highlightedSpace = [game.pZ(), game.pY(), game.pX()];
-let contextMenuOpen = false;
-let highlightedContextMenuRow = null;
+let contextMenu = null;
+
+class ContextMenu {
+  constructor(display, game, z, y, x) {
+    this.display = display;
+    this.game = game;
+    this.z = z;
+    this.y = y;
+    this.x = x;
+
+    this.highlightedRow = 0;
+    this.populateOptions();
+  }
+
+  sameSpaceAsPlayer() {
+    return this.z == this.game.pZ() && this.y == this.game.pY() && this.x == this.game.pX();
+  }
+
+  adjacentToPlayer() {
+    return Math.abs(this.z - this.game.pZ()) <= 1 && Math.abs(this.y - this.game.pY()) <= 1 && Math.abs(this.x - this.game.pX()) <= 1;
+  }
+
+  directionFromPlayer() {
+    return [unit(this.z - this.game.pZ()), unit(this.y - this.game.pY()), unit(this.x - this.game.pX())];
+  }
+
+  changeSelection(direction) {
+    this.highlightedRow += direction;
+    if (this.highlightedRow >= this.options.length) {
+      this.highlightedRow = 0;
+    }
+    if (this.highlightedRow < 0) {
+      this.highlightedRow = this.options.length - 1;
+    }
+  }
+
+  executeSelection() {
+    this.options[this.highlightedRow].execute();
+  }
+
+  populateOptions() {
+    this.options = [];
+    let direction = this.directionFromPlayer();
+    if (this.sameSpaceAsPlayer()) {
+      this.options.push(new ContextMenuOption('Wait', this.game.player.wait));
+    }
+
+    if (this.adjacentToPlayer()) {
+      if (this.game.player.canMoveInDirection(direction)) {
+        this.options.push(new ContextMenuOption('Move', () => this.game.player.move(direction)));
+      }
+      if (this.game.player.canMoveInDirection(direction)) {
+        this.options.push(new ContextMenuOption('Dash', () => this.game.player.move(direction)));
+      }
+    }
+
+    if (this.sameSpaceAsPlayer() || this.adjacentToPlayer()) {
+      this.game.map.getObjectsAt(this.z, this.y, this.x).filter(o => !o.isPlayer).forEach(object => {
+        if (object.isDoor && object.isOpen()) {
+          this.options.push(new ContextMenuOption(`Close the ${object.name}`, () => this.game.player.open(object)));
+        }
+        if (object.isDoor && !object.isOpen()) {
+          this.options.push(new ContextMenuOption(`Open the ${object.name}`, () => this.game.player.open(object)));
+        }
+      });
+    }
+
+    if (this.options.length == 0) {
+      this.options.push(new ContextMenuOption('-', () => true));
+    }
+
+  }
+
+  draw() {
+    let topEdge = this.game.pY() - (displayH - 1) / 2;
+    let leftEdge = this.game.pX() - (displayW - 1) / 2;
+
+    let y = this.y - topEdge;
+    let x = this.x - leftEdge;
+
+    for (let j = 0; j < this.options.length; j++) {
+      let color = j == this.highlightedRow ? '%c{yellow}' : '%c{white}';
+      mapDisplay.drawText(x + 1, y + j, color + this.options[j].getText());
+    }
+  }
+
+}
+
+class ContextMenuOption {
+  constructor(text, fn) {
+    this.text = text;
+    this.fn = fn;
+  }
+
+  getText() {
+    return this.text;
+  }
+
+  execute() {
+    return this.fn();
+  }
+}
 
 endPlayerTurn = function() {
   game.advanceGameState();
@@ -654,14 +772,33 @@ move =  function(direction) {
 }
 
 openContextMenu =  function(z, y, x) {
-  contextMenuOpen = true;
+  contextMenu = new ContextMenu(mapDisplay, game, z, y, x);
   highlightedSpace = [z, y, x];
-  highlightedContextMenuRow = 0;
+  drawAll(false);
+}
+
+closeContextMenu =  function() {
+  contextMenu = null;
+  highlightedSpace = null;
+  drawAll(false);
 }
 
 keyPressed = function(code) {
+  //console.log(code);
 
   switch (code) {
+    case 13:
+      // enter
+      if (contextMenu) {
+        contextMenu.executeSelection();
+        closeContextMenu();
+        drawAll(false);
+      }
+      break;
+    case 27:
+      // esc
+      closeContextMenu();
+      break;
 		case 103:
 		case 36:
 		case 55:
@@ -699,12 +836,22 @@ keyPressed = function(code) {
     case 40:
     case 98:
 			//numpad2, down
-      selectDirection(SOUTH);
+      if (contextMenu) {
+        contextMenu.changeSelection(1);
+        drawAll(false);
+      } else {
+        selectDirection(SOUTH);
+      }
 			break;
     case 38:
     case 104:
 			//numpad8, up
-      selectDirection(NORTH);
+      if (contextMenu) {
+        contextMenu.changeSelection(-1);
+        drawAll(false);
+      } else {
+        selectDirection(NORTH);
+      }
 			break;
     case 188: // <
     case 85:  // u
@@ -769,13 +916,13 @@ drawSpace = function(mapCoords, i, j) {
     let background = zAdjustColor(baseColor, mapCoords.z - game.pZ());
 
     if (objects.length) {
-      let object = displayForObject(objects[0].type);
+      let object = displayForObject(objects[0]);
       color = object.color;
       character = object.character;
     }
     mapDisplay.draw(i, j, character, color, background);
   } else if (objects.length) {
-    let object = displayForObject(objects[0].type);
+    let object = displayForObject(objects[0]);
     color = object.color;
     character = object.character;
     mapDisplay.draw(i, j, character, color, null);
@@ -856,7 +1003,11 @@ drawAll = function(recursion=true) {
 
   mapDisplay.drawText(0, 0, `${game.pX()},${game.pY()},${game.pZ()} View: ${VIEWS[viewAngle]} Turn: ${game.turn}`);
 
-  if(recursion) {
+  if (contextMenu) {
+    contextMenu.draw();
+  }
+
+  if (recursion) {
     setTimeout(() => drawAll(true), 900);
   }
 }
