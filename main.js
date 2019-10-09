@@ -4,14 +4,6 @@ class Game {
     this.map.build();
     this.turn = 0;
     this.player = new Creature(this, 0, 50, -20);
-    /*{
-      type: OBJ_PLAYER,
-      name: 'Garrett',
-      health: 10,
-      awareness: 20,
-      breath: 10
-    };
-    this.map.placeObject(this.player, 0, 50, -20);*/
   }
 
   pX() {
@@ -354,7 +346,8 @@ class Map {
 
   getObjectsAt(z, y, x) {
     let key = `${z},${y},${x}`;
-    return this.objects[key] || [];
+    let stuff = this.objects[key] || [];
+    return stuff.sort((a, b) => a.type - b.type);
   }
 
   placeObject(object, z, y, x) {
@@ -867,6 +860,7 @@ keyPressed = function(code) {
       if (viewAngle > VIEW_ISO_SE) {
         viewAngle = 0;
       }
+      drawAll(false);
 			break;
 	}
 }
