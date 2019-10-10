@@ -11,6 +11,11 @@ const SHINGLES = 9;
 const GRASS = 10;
 const WATER = 11;
 
+const WOOD_STAIR_NORTH = 12;
+const WOOD_STAIR_SOUTH = 13;
+const WOOD_STAIR_EAST = 14;
+const WOOD_STAIR_WEST = 15;
+
 const LIGHT_NONE = 0;
 const LIGHT_DIM_FLICKER = 1;
 const LIGHT_DIM = 2;

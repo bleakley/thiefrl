@@ -15,3 +15,12 @@ function unit(value) {
   }
   return 0;
 }
+
+function vectorAsEnum(vector) {
+  for (let i = 0; i < DIRECTIONS.length; i++) {
+    if (_.deepEquals(vector, DIRECTIONS[i])) {
+      return i;
+    }
+  }
+  return vector;
+}
