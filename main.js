@@ -42,13 +42,23 @@ class GameObject {
 
 }
 
-/*class Torch extends GameObject {
+class Ladder extends GameObject {
   constructor(game, z, y, x) {
-    GameObject.call(this, game);
+    super(game, z, y, x);
+    this.type = OBJ_LADDER;
+    this.name = 'Ladder';
+  }
+}
+
+class Torch extends GameObject {
+  constructor(game, z, y, x) {
+    super(game, z, y, x);
     this.type = OBJ_TORCH;
     this.name = 'Torch';
+    this.dimLightRange = 10;
+    this.brightLightRange = 5;
   }
-}*/
+}
 
 class Door extends GameObject {
   constructor(game, z, y, x) {
@@ -83,6 +93,7 @@ class Creature extends GameObject {
     super(game, z, y, x);
     this.type = OBJ_PLAYER;
     this.isPlayer = true;
+    this.name = 'Garrett';
   }
 
   canMoveInDirection(direction) {
@@ -261,6 +272,26 @@ class Map {
         break;
     }
 
+    let ladderX = leftEdge + getRandomIntInclusive(2, width - 2);
+    let ladderY = topEdge + getRandomIntInclusive(2, width - 2);
+    new Ladder(this.game, 0, ladderY, ladderX);
+
+    for (let k = 1; k < floors; k++) {
+      new Ladder(this.game, k, ladderY, ladderX);
+      this.getLayer(k).spaces[ladderY][ladderX] = {
+        building: true,
+        terrain: NOTHING
+      }
+    }
+
+    if (percentChance(50)) {
+      this.getLayer(floors).spaces[ladderY][ladderX] = {
+        building: true,
+        terrain: NOTHING
+      }
+      new Ladder(this.game, floors, ladderY, ladderX);
+    }
+
     this.getLayer(0).spaces[doorY][doorX] = {
       building: true,
       terrain: WOOD_FLOOR
@@ -274,7 +305,7 @@ class Map {
     let width = getRandomIntInclusive(2, 4);
     let length = getRandomIntInclusive(8, 20);
     let depth = getRandomIntInclusive(1, 2);
-    if (getRandomIntInclusive(1, 2) == 1) {
+    if (percentChance(50)) {
       //vertical
       for (let j = topEdge; j < topEdge + length; j++) {
         for (let i = leftEdge; i < leftEdge + width; i++) {
@@ -376,12 +407,7 @@ class Map {
       return false;
     }
     space.building = true;
-    let lamp = {
-      type: OBJ_TORCH,
-      dimLightRange: 10,
-      brightLightRange: 5
-    };
-    this.placeObject(lamp, 0, y, x);
+    new Torch(this.game, 0, y, x);
     return true;
   }
 
@@ -611,6 +637,8 @@ displayForObject = function(object) {
         return {character: ',', color: 'black'};
       }
       return {character: '#', color: 'black'};
+    case OBJ_LADDER:
+      return {character: '\u2261', color: 'white'};
   }
   return {character: '?', color: 'white'};
 }
@@ -779,90 +807,104 @@ closeContextMenu =  function() {
 keyPressed = function(code) {
   //console.log(code);
 
-  switch (code) {
-    case 13:
-      // enter
-      if (contextMenu) {
+  if (contextMenu) {
+    switch (code) {
+      case 13:
+        // enter
         contextMenu.executeSelection();
         closeContextMenu();
         drawAll(false);
-      }
-      break;
-    case 27:
-      // esc
-      closeContextMenu();
-      break;
-		case 103:
-		case 36:
-		case 55:
-			//numpad7, top left
-      selectDirection(NW);
-			break;
-		case 105:
-		case 33:
-		case 57:
-			//numpad9, top right
-      selectDirection(NE);
-			break;
-		case 100:
-		case 37:
-			//numpad4, left
-      selectDirection(WEST);
-			break;
-		case 102:
-		case 39:
-			//numpad6, right
-      selectDirection(EAST);
-			break;
-		case 97:
-		case 35:
-		case 49:
-			//numpad1, bottom left
-      selectDirection(SW);
-			break;
-		case 99:
-		case 34:
-		case 51:
-			//numpad3, bottom right
-      selectDirection(SE);
-			break;
-    case 40:
-    case 98:
-			//numpad2, down
-      if (contextMenu) {
+        break;
+      case 27:
+        // esc
+        closeContextMenu();
+        break;
+      case 40:
+      case 98:
+  			//numpad2, down
         contextMenu.changeSelection(1);
         drawAll(false);
-      } else {
-        selectDirection(SOUTH);
-      }
-			break;
-    case 38:
-    case 104:
-			//numpad8, up
-      if (contextMenu) {
+  			break;
+      case 38:
+      case 104:
+  			//numpad8, up
         contextMenu.changeSelection(-1);
         drawAll(false);
-      } else {
+  			break;
+      case 86:
+  			//v
+        viewAngle++;
+        if (viewAngle > VIEW_ISO_SE) {
+          viewAngle = 0;
+        }
+        drawAll(false);
+  			break;
+  	}
+  } else {
+    switch (code) {
+  		case 103:
+  		case 36:
+  		case 55:
+  			//numpad7, top left
+        selectDirection(NW);
+  			break;
+  		case 105:
+  		case 33:
+  		case 57:
+  			//numpad9, top right
+        selectDirection(NE);
+  			break;
+  		case 100:
+  		case 37:
+  			//numpad4, left
+        selectDirection(WEST);
+  			break;
+  		case 102:
+  		case 39:
+  			//numpad6, right
+        selectDirection(EAST);
+  			break;
+  		case 97:
+  		case 35:
+  		case 49:
+  			//numpad1, bottom left
+        selectDirection(SW);
+  			break;
+  		case 99:
+  		case 34:
+  		case 51:
+  			//numpad3, bottom right
+        selectDirection(SE);
+  			break;
+      case 40:
+      case 98:
+  			//numpad2, down
+        selectDirection(SOUTH);
+  			break;
+      case 38:
+      case 104:
+  			//numpad8, up
         selectDirection(NORTH);
-      }
-			break;
-    case 188: // <
-    case 85:  // u
-      selectDirection(UP);
-			break;
-    case 190: // >
-    case 68:  // d
-      selectDirection(DOWN);
-			break;
-    case 86:
-			//v
-      viewAngle++;
-      if (viewAngle > VIEW_ISO_SE) {
-        viewAngle = 0;
-      }
-      drawAll(false);
-			break;
-	}
+  			break;
+      case 188: // <
+      case 85:  // u
+        selectDirection(UP);
+  			break;
+      case 190: // >
+      case 68:  // ds
+        selectDirection(DOWN);
+  			break;
+      case 86:
+  			//v
+        viewAngle++;
+        if (viewAngle > VIEW_ISO_SE) {
+          viewAngle = 0;
+        }
+        drawAll(false);
+  			break;
+  	}
+  }
+
 }
 
 keydownHandler.handleEvent = function(event) {
@@ -951,6 +993,7 @@ findSpaceToDraw = function(y, x) {
       mapZ -= 1;
       visible = game.map.getPlayerFovAt(mapZ, mapY, mapX);
       space = game.map.getSpace(mapZ, mapY, mapX);
+      hasObject = game.map.getObjectsAt(mapZ, mapY, mapX).length > 0;
     }
   } else {
     let playerUnderSomething = blocksMovementFromBelow(game.map.getSpace(game.pZ() + 1, game.pY(), game.pX()));
@@ -969,10 +1012,8 @@ findSpaceToDraw = function(y, x) {
       mapZ += 1;
       visible = game.map.getPlayerFovAt(mapZ, mapY, mapX);
       space = game.map.getSpace(mapZ, mapY, mapX);
+      hasObject = game.map.getObjectsAt(mapZ, mapY, mapX).length > 0;
     } while (!visible && cnt < maxCnt)
-    /*if (cnt >= maxCnt) {
-      return null;
-    }*/
 
   }
   return { z: mapZ, y: mapY, x: mapX }
